@@ -16,6 +16,19 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+type Repository interface {
+	InsertNumberInDatabase(c *gin.Context, ctx context.Context, person *model.Person) (*mongo.InsertOneResult, error)
+	Stages(c *gin.Context) (primitive.D, primitive.D, primitive.D)
+	Results(c *gin.Context, ctx context.Context) *mongo.Cursor
+}
+
+type mongoRepository struct{}
+
+func NewRepository() Repository {
+	return &mongoRepository{}
+}
+
+// This function here should be in your service
 func HashPassword(password string) (string, error) {
 	encryptionSize := 14
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), encryptionSize)
@@ -25,7 +38,7 @@ func HashPassword(password string) (string, error) {
 	return string(bytes), nil
 }
 
-func InsertNumberInDatabase(c *gin.Context, ctx context.Context, person *model.Person) (*mongo.InsertOneResult, error) {
+func (mongoRepository) InsertNumberInDatabase(c *gin.Context, ctx context.Context, person *model.Person) (*mongo.InsertOneResult, error) {
 	resultInsertionNumber, err := database.Collection(database.Connect(), constants.TABLE).InsertOne(ctx, person)
 	if err != nil {
 		return &mongo.InsertOneResult{}, err
@@ -33,7 +46,7 @@ func InsertNumberInDatabase(c *gin.Context, ctx context.Context, person *model.P
 	return resultInsertionNumber, nil
 }
 
-func Stages(c *gin.Context) (primitive.D, primitive.D, primitive.D) {
+func (mongoRepository) Stages(c *gin.Context) (primitive.D, primitive.D, primitive.D) {
 	recordPerPage, errorConvertionRecord := strconv.Atoi(c.Query("recordPerPage"))
 	if errorConvertionRecord != nil || recordPerPage < 1 {
 		recordPerPage = 10
@@ -65,8 +78,8 @@ func Stages(c *gin.Context) (primitive.D, primitive.D, primitive.D) {
 	return matchStage, groupStage, projectStage
 }
 
-func Results(c *gin.Context, ctx context.Context) *mongo.Cursor {
-	matchStage, groupStage, projectStage := Stages(c)
+func (m mongoRepository) Results(c *gin.Context, ctx context.Context) *mongo.Cursor {
+	matchStage, groupStage, projectStage := m.Stages(c)
 	result, _ := database.Collection(database.Connect(), constants.TABLE).Aggregate(ctx, mongo.Pipeline{
 		matchStage, groupStage, projectStage,
 	})
